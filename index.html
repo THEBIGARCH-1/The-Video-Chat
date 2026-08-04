@@ -3,78 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instant Video Chat</title>
+    <title>Peer Video Chat</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             text-align: center;
-            background: #0f172a;
-            color: #f8fafc;
+            background: #111;
+            color: #fff;
             margin: 0;
-            padding: 40px 20px;
-        }
-        h2 { margin-bottom: 5px; color: #38bdf8; }
-        .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 30px; }
-        
-        .card {
-            background: #1e293b;
             padding: 30px;
-            border-radius: 12px;
+        }
+        .card {
+            background: #222;
+            padding: 25px;
+            border-radius: 10px;
             display: inline-block;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-            max-width: 420px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 400px;
             width: 100%;
-            border: 1px solid #334155;
         }
         input {
-            padding: 12px;
+            padding: 10px;
             font-size: 16px;
-            width: 85%;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            border: 1px solid #475569;
-            background: #0f172a;
+            width: 80%;
+            margin-bottom: 12px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background: #000;
             color: white;
             text-align: center;
-            outline: none;
         }
-        input:focus { border-color: #38bdf8; }
-        
         button {
-            padding: 12px 24px;
+            padding: 10px 20px;
             font-size: 16px;
-            margin: 6px;
-            border-radius: 8px;
+            margin: 5px;
+            border-radius: 5px;
             border: none;
             cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
-            width: 90%;
+            font-weight: bold;
+            width: 85%;
         }
-        .btn-create { background: #10b981; color: white; }
-        .btn-create:hover { background: #059669; }
-        .btn-join { background: #0284c7; color: white; }
-        .btn-join:hover { background: #0369a1; }
+        .btn-create { background: #28a745; color: white; }
+        .btn-create:hover { background: #218838; }
+        .btn-join { background: #007bff; color: white; }
+        .btn-join:hover { background: #0069d9; }
         
         #video-container {
             display: none;
             justify-content: center;
             gap: 20px;
             flex-wrap: wrap;
-            margin-top: 30px;
+            margin-top: 25px;
         }
         .video-box {
             position: relative;
             background: #000;
-            border-radius: 10px;
+            border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            border: 1px solid #334155;
+            border: 2px solid #444;
         }
         video {
-            width: 450px;
-            height: 340px;
+            width: 400px;
+            height: 300px;
             object-fit: cover;
             display: block;
         }
@@ -82,37 +73,29 @@
             position: absolute;
             bottom: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 4px 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 8px;
             border-radius: 4px;
             font-size: 12px;
-            color: #cbd5e1;
         }
-        #status-msg {
-            margin-top: 15px;
-            color: #fbbf24;
-            font-weight: 500;
-        }
+        #status { margin-top: 15px; color: #ffc107; }
     </style>
 </head>
 <body>
 
-    <h2>Secure Web Video Chat</h2>
-    <div class="subtitle">Create a room or join a friend instantly</div>
+    <h2>Video Chat Room</h2>
 
     <div id="lobby" class="card">
-        <button class="btn-create" id="create-btn">🚀 Create New Room</button>
-        <p style="margin: 20px 0 10px 0; color: #64748b; font-size: 13px;">— OR JOIN EXISTING —</p>
-        <input type="text" id="room-input" placeholder="Enter Room Code (e.g. ABC123)">
+        <button class="btn-create" id="create-btn">Create Room</button>
+        <p style="margin: 15px 0; color: #888;">OR</p>
+        <input type="text" id="room-input" placeholder="Enter Room Code">
         <br>
-        <button class="btn-join" id="join-btn">🔗 Join Room</button>
-        <div id="status-msg"></div>
+        <button class="btn-join" id="join-btn">Join Room</button>
+        <div id="status"></div>
     </div>
 
     <div id="room-info" style="display:none; margin-bottom: 15px;">
-        <span style="background: #1e293b; padding: 8px 16px; border-radius: 6px; border: 1px solid #334155;">
-            Active Room Code: <strong id="display-code" style="color: #38bdf8; font-size: 18px;"></strong>
-        </span>
+        Room Code: <strong id="code-display" style="color: #00bcd4; font-size: 20px;"></strong>
     </div>
 
     <div id="video-container">
@@ -122,18 +105,18 @@
         </div>
         <div class="video-box">
             <video id="remote-video" autoplay playsinline></video>
-            <div class="label">Friend</div>
+            <div class="label">Friend's Camera</div>
         </div>
     </div>
 
     <script>
         const lobby = document.getElementById('lobby');
         const roomInfo = document.getElementById('room-info');
-        const displayCode = document.getElementById('display-code');
+        const codeDisplay = document.getElementById('code-display');
         const createBtn = document.getElementById('create-btn');
         const joinBtn = document.getElementById('join-btn');
         const roomInput = document.getElementById('room-input');
-        const statusMsg = document.getElementById('status-msg');
+        const statusDiv = document.getElementById('status');
         const videoContainer = document.getElementById('video-container');
         
         const localVideo = document.getElementById('local-video');
@@ -142,75 +125,70 @@
         let localStream;
         let peer;
 
-        // 1. Pre-check media permissions gracefully
+        // Request local camera and microphone access right away
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 localStream = stream;
                 localVideo.srcObject = stream;
             })
             .catch(err => {
-                statusMsg.innerText = "⚠️ Camera/Microphone blocked. Check browser site permissions!";
+                statusDiv.innerText = "Error: Camera/Microphone access denied or not supported.";
                 console.error(err);
             });
 
-        function generateCode() {
-            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        function makeCode() {
+            return Math.random().toString(36).substring(2, 7).toUpperCase();
         }
 
         createBtn.addEventListener('click', () => {
-            if (!localStream) return alert("Please allow camera permissions first!");
-            const code = generateCode();
-            startSession(code, true);
+            if (!localStream) return alert("Please allow camera access first!");
+            const code = makeCode();
+            startChat(code, true);
         });
 
         joinBtn.addEventListener('click', () => {
-            if (!localStream) return alert("Please allow camera permissions first!");
+            if (!localStream) return alert("Please allow camera access first!");
             const code = roomInput.value.trim().toUpperCase();
-            if (!code) return alert("Please enter a valid room code!");
-            startSession(code, false);
+            if (!code) return alert("Please type a room code!");
+            startChat(code, false);
         });
 
-        function startSession(roomCode, isCreator) {
+        function startChat(roomCode, isCreator) {
             lobby.style.display = 'none';
             roomInfo.style.display = 'block';
-            displayCode.innerText = roomCode;
+            codeDisplay.innerText = roomCode;
             videoContainer.style.display = 'flex';
 
-            // Unique peer identifiers to prevent collision on public cloud
-            const uniqueId = `vidchat-${roomCode}-${isCreator ? 'host' : 'guest'}`;
-            peer = new Peer(uniqueId);
+            const peerId = `camchat-${roomCode}-${isCreator ? 'host' : 'guest'}`;
+            peer = new Peer(peerId);
 
             peer.on('open', () => {
                 if (!isCreator) {
-                    statusMsg.innerText = "Connecting to room...";
-                    const hostId = `vidchat-${roomCode}-host`;
+                    statusDiv.innerText = "Connecting to room...";
+                    const hostId = `camchat-${roomCode}-host`;
                     const call = peer.call(hostId, localStream);
                     
                     call.on('stream', remoteStream => {
                         remoteVideo.srcObject = remoteStream;
-                        statusMsg.innerText = "";
-                    });
-                    call.on('error', (err) => {
-                        alert("Could not connect to host. Make sure the host is already in the room!");
-                        location.reload();
+                        statusDiv.innerText = "Connected!";
                     });
                 } else {
-                    statusMsg.innerText = "Room created! Waiting for someone to join...";
+                    statusDiv.innerText = "Waiting for someone to join your room...";
                 }
             });
 
-            // Handle incoming connection requests if you are the host
+            // If someone joins and calls this client, answer with local camera stream
             peer.on('call', call => {
                 call.answer(localStream);
                 call.on('stream', remoteStream => {
                     remoteVideo.srcObject = remoteStream;
-                    statusMsg.innerText = "Connected!";
+                    statusDiv.innerText = "Connected!";
                 });
             });
 
-            peer.on('error', (err) => {
+            peer.on('error', err => {
                 if (err.type === 'unavailable-id') {
-                    alert("This room code is already active or taken. Try a different code!");
+                    alert("This room code is already taken. Try a different one!");
                     location.reload();
                 } else {
                     console.error(err);
