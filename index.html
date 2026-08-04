@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiplayer Group Video Chat</title>
+    <title>Direct Room Video Chat</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body {
@@ -12,7 +12,7 @@
             background: #0f172a;
             color: #f8fafc;
             margin: 0;
-            padding: 20px;
+            padding: 30px;
         }
         .card {
             background: #1e293b;
@@ -25,7 +25,7 @@
             border: 1px solid #334155;
         }
         input {
-            padding: 10px;
+            padding: 12px;
             font-size: 16px;
             width: 80%;
             margin-bottom: 12px;
@@ -35,9 +35,10 @@
             color: white;
             text-align: center;
             outline: none;
+            text-transform: uppercase;
         }
         button {
-            padding: 10px 20px;
+            padding: 12px 20px;
             font-size: 16px;
             margin: 5px;
             border-radius: 6px;
@@ -54,9 +55,9 @@
         #video-container {
             display: none;
             justify-content: center;
-            gap: 15px;
+            gap: 20px;
             flex-wrap: wrap;
-            margin-top: 20px;
+            margin-top: 25px;
         }
         .video-box {
             position: relative;
@@ -64,8 +65,8 @@
             border-radius: 8px;
             overflow: hidden;
             border: 2px solid #334155;
-            width: 320px;
-            height: 240px;
+            width: 400px;
+            height: 300px;
         }
         video {
             width: 100%;
@@ -75,20 +76,20 @@
         }
         .label {
             position: absolute;
-            bottom: 8px;
-            left: 8px;
+            bottom: 10px;
+            left: 10px;
             background: rgba(0, 0, 0, 0.7);
-            padding: 3px 8px;
+            padding: 4px 10px;
             border-radius: 4px;
-            font-size: 11px;
+            font-size: 12px;
             color: #cbd5e1;
         }
-        #status { margin-top: 15px; color: #fbbf24; font-size: 14px; }
+        #status { margin-top: 15px; color: #fbbf24; font-size: 14px; font-weight: 500; }
     </style>
 </head>
 <body>
 
-    <h2>Group Video Chat Room</h2>
+    <h2>Direct Connect Video Chat</h2>
 
     <div id="lobby" class="card">
         <button class="btn-create" id="create-btn">Create Room</button>
@@ -100,13 +101,17 @@
     </div>
 
     <div id="room-info" style="display:none; margin-bottom: 15px;">
-        Room Code: <strong id="code-display" style="color: #38bdf8; font-size: 18px;"></strong>
+        Room Code: <strong id="code-display" style="color: #38bdf8; font-size: 20px;"></strong>
     </div>
 
     <div id="video-container">
-        <div class="video-box" id="local-box">
+        <div class="video-box">
             <video id="local-video" autoplay muted playsinline></video>
             <div class="label">You</div>
+        </div>
+        <div class="video-box">
+            <video id="remote-video" autoplay playsinline></video>
+            <div class="label">Friend</div>
         </div>
     </div>
 
@@ -119,13 +124,14 @@
         const roomInput = document.getElementById('room-input');
         const statusDiv = document.getElementById('status');
         const videoContainer = document.getElementById('video-container');
+        
         const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
 
         let localStream;
         let peer;
-        let activePeers = {};
 
-        // 1. Initialize webcam right away
+        // 1. Request webcam and mic permissions immediately on load
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 localStream = stream;
@@ -137,113 +143,91 @@
             });
 
         function makeCode() {
-            return Math.random().toString(36).substring(2, 7).toUpperCase();
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
         }
 
+        // Button: Create Room (You become the Host)
         createBtn.addEventListener('click', () => {
-            if (!localStream) return alert("Please allow camera access first!");
-            startChat(makeCode());
+            if (!localStream) return alert("Please allow camera permissions first!");
+            const code = makeCode();
+            startHost(code);
         });
 
+        // Button: Join Room (You connect directly to the Host's code)
         joinBtn.addEventListener('click', () => {
-            if (!localStream) return alert("Please allow camera access first!");
+            if (!localStream) return alert("Please allow camera permissions first!");
             const code = roomInput.value.trim().toUpperCase();
             if (!code) return alert("Please type a room code!");
-            startChat(code);
+            startGuest(code);
         });
 
-        function startChat(roomCode) {
+        // HOST SETUP
+        function startHost(roomCode) {
             lobby.style.display = 'none';
             roomInfo.style.display = 'block';
             codeDisplay.innerText = roomCode;
             videoContainer.style.display = 'flex';
+            statusDiv.innerText = "Waiting for your friend to join...";
 
-            // Generate unique user identifier suffix to prevent connection overlap
-            const myId = `multichat-${roomCode}-${Math.floor(Math.random() * 100000)}`;
-            peer = new Peer(myId);
+            // Create a completely predictable ID for the host using the room code
+            const hostPeerId = `directchat-host-${roomCode}`;
+            peer = new Peer(hostPeerId);
 
-            peer.on('open', (id) => {
-                statusDiv.innerText = "Joined room! Looking for peers...";
-                
-                // To allow multiple people to discover each other, we broadcast 
-                // connection signals using a shared room channel namespace trick via PeerJS calls.
+            peer.on('open', () => {
+                console.log("Host ready with ID:", hostPeerId);
             });
 
-            // Listen for incoming calls from any other participant
+            // When the guest dials in, answer with your local stream
             peer.on('call', call => {
                 call.answer(localStream);
-                handleIncomingCall(call);
+                call.on('stream', remoteStream => {
+                    remoteVideo.srcObject = remoteStream;
+                    statusDiv.innerText = "Connected!";
+                });
             });
 
-            // If someone enters a room code, broadcast discovery calls to common host IDs or existing participants
-            // For a robust multi-person mesh setup, users connect to a base room key pattern:
-            setTimeout(() => {
-                broadcastPresence(roomCode);
-            }, 1000);
+            peer.on('error', err => {
+                if (err.type === 'unavailable-id') {
+                    alert("This room code is already active. Try a different code or refresh!");
+                    location.reload();
+                } else {
+                    console.error(err);
+                }
+            });
+        }
+
+        // GUEST SETUP
+        function startGuest(roomCode) {
+            lobby.style.display = 'none';
+            roomInfo.style.display = 'block';
+            codeDisplay.innerText = roomCode;
+            videoContainer.style.display = 'flex';
+            statusDiv.innerText = "Connecting to room...";
+
+            // Give the guest a random temporary ID so it doesn't clash
+            peer = new Peer();
+
+            peer.on('open', () => {
+                // Target the exact host ID created by your friend
+                const hostPeerId = `directchat-host-${roomCode}`;
+                
+                // Call the host directly using your local stream
+                const call = peer.call(hostPeerId, localStream);
+
+                call.on('stream', remoteStream => {
+                    remoteVideo.srcObject = remoteStream;
+                    statusDiv.innerText = "Connected!";
+                });
+
+                call.on('error', (err) => {
+                    alert("Could not find that room code. Make sure your friend created the room first!");
+                    location.reload();
+                });
+            });
 
             peer.on('error', err => {
                 console.error(err);
             });
-        }
-
-        function broadcastPresence(roomCode) {
-            // Try connecting to generic host templates to announce presence
-            const potentialHosts = [
-                `multichat-${roomCode}-host`,
-                `multichat-${roomCode}-1`,
-                `multichat-${roomCode}-2`,
-                `multichat-${roomCode}-3`
-            ];
-
-            potentialHosts.forEach(hostId => {
-                if (hostId !== peer.id) {
-                    const call = peer.call(hostId, localStream);
-                    if (call) {
-                        handleIncomingCall(call);
-                    }
-                }
-            });
-        }
-
-        function handleIncomingCall(call) {
-            call.on('stream', remoteStream => {
-                if (!activePeers[call.peer]) {
-                    activePeers[call.peer] = true;
-                    addVideoStream(call.peer, remoteStream);
-                    statusDiv.innerText = "Connected to peers!";
-                }
-            });
-
-            call.on('close', () => {
-                removeVideoStream(call.peer);
-            });
-        }
-
-        function addVideoStream(peerId, stream) {
-            if (document.getElementById(`box-${peerId}`)) return;
-
-            const box = document.createElement('div');
-            box.className = 'video-box';
-            box.id = `box-${peerId}`;
-
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.playsInline = true;
-
-            const label = document.createElement('div');
-            label.className = 'label';
-            label.innerText = 'Participant';
-
-            box.appendChild(video);
-            box.appendChild(label);
-            videoContainer.appendChild(box);
-        }
-
-        function removeVideoStream(peerId) {
-            const box = document.getElementById(`box-${peerId}`);
-            if (box) box.remove();
-            delete activePeers[peerId];
         }
     </script>
 </body>
