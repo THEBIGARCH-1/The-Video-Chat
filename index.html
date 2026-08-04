@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instant Web Video Chat</title>
+    <title>Instant Video Chat</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body {
@@ -183,9 +183,16 @@
             videoContainer.style.display = 'flex';
             statusMsg.innerText = "Room created! Waiting for friend to join...";
 
-            // Lock down a dedicated host ID using the room code prefix
+            // Lock down a dedicated host ID using a unique prefix with Google STUN servers enabled
             const hostId = `vchat-host-${roomCode}`;
-            peer = new Peer(hostId);
+            peer = new Peer(hostId, {
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
 
             peer.on('open', () => {
                 console.log("Host connected to network.");
@@ -217,8 +224,15 @@
             videoContainer.style.display = 'flex';
             statusMsg.innerText = "Connecting to room...";
 
-            // Create standard peer for guest
-            peer = new Peer();
+            // Create guest peer with Google STUN servers enabled for better internet routing
+            peer = new Peer({
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
 
             peer.on('open', () => {
                 const hostId = `vchat-host-${roomCode}`;
