@@ -3,175 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Chat Lobby</title>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <title>Online Multiplayer Arena</title>
     <style>
         body {
+            background-color: #111;
+            color: white;
             font-family: Arial, sans-serif;
             text-align: center;
-            background: #1e1e1e;
-            color: white;
             margin: 0;
-            padding: 30px;
-        }
-        .card {
-            background: #2a2a2a;
             padding: 20px;
-            border-radius: 10px;
-            display: inline-block;
-            margin-top: 20px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            max-width: 400px;
-            width: 100%;
         }
-        input {
-            padding: 10px;
-            font-size: 16px;
-            width: 80%;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            border: 1px solid #444;
-            background: #111;
-            color: white;
-            text-align: center;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin: 5px;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .btn-primary { background: #0084ff; color: white; }
-        .btn-primary:hover { background: #006fe6; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-success:hover { background: #218838; }
-        #video-container {
-            display: none;
-            justify-content: center;
-            gap: 20px;
-            flex-wrap: wrap;
-            margin-top: 20px;
-        }
-        video {
-            width: 400px;
-            height: 300px;
-            background: black;
+        canvas {
+            background-color: #222;
+            border: 2px solid #555;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            margin-top: 10px;
             border-radius: 8px;
-            object-fit: cover;
+        }
+        .instructions {
+            color: #888;
+            font-size: 14px;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
 
-    <h2>Video Chat Rooms</h2>
-
-    <div id="lobby" class="card">
-        <h3>Welcome</h3>
-        <p>Create a new video room or join an existing room code.</p>
-        <button class="btn-success" id="create-btn">Create Room</button>
-        <hr style="border-color: #444; margin: 20px 0;">
-        <input type="text" id="room-input" placeholder="Enter Room Code">
-        <br>
-        <button class="btn-primary" id="join-btn">Join Room</button>
-    </div>
-
-    <div id="room-dashboard" class="card" style="display: none;">
-        <h3>Room Code: <span id="active-room-code" style="color: #4da6ff;"></span></h3>
-        <p>Waiting for another person to join...</p>
-    </div>
-
-    <div id="video-container">
-        <video id="local-video" autoplay muted></video>
-        <video id="remote-video" autoplay></video>
-    </div>
+    <h2>Online Multiplayer Arena</h2>
+    <p class="instructions">Use the <b>Arrow Keys</b> or <b>W, A, S, D</b> to move your player around!</p>
+    
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
 
     <script>
-        const lobby = document.getElementById('lobby');
-        const roomDashboard = document.getElementById('room-dashboard');
-        const activeRoomCode = document.getElementById('active-room-code');
-        const createBtn = document.getElementById('create-btn');
-        const joinBtn = document.getElementById('join-btn');
-        const roomInput = document.getElementById('room-input');
-        const videoContainer = document.getElementById('video-container');
-        
-        const localVideo = document.getElementById('local-video');
-        const remoteVideo = document.getElementById('remote-video');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-        let localStream;
-        let peer;
+        // Local player position & properties
+        let player = {
+            x: Math.random() * 550 + 25,
+            y: Math.random() * 350 + 25,
+            size: 20,
+            speed: 4,
+            color: '#' + Math.floor(Math.random()*16777215).toString(16) // Random color
+        };
 
-        // Get local webcam/microphone stream right away
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => {
-                localStream = stream;
-                localVideo.srcObject = stream;
-            })
-            .catch(error => alert('Could not access camera/microphone. Please check permissions.'));
+        // Track pressed keys
+        let keys = {};
+        window.addEventListener('keydown', (e) => keys[e.key] = true);
+        window.addEventListener('keyup', (e) => keys[e.key] = false);
 
-        // Helper function to generate a random 4-letter room code
-        function generateRoomCode() {
-            return Math.random().toString(36.substring(2, 8)).toUpperCase().slice(2, 8);
+        // Connect to a public multiplayer broadcast server or test locally via WebSocket simulation
+        // For a true zero-config public test, you can plug in a public WebSocket echo/relay endpoint
+        // Or run a local Node.js WebSocket script. Here is the canvas loop engine setup:
+
+        function update() {
+            // Movement logic
+            if ((keys['ArrowUp'] || keys['w'] || keys['W']) && player.y > player.size) player.y -= player.speed;
+            if ((keys['ArrowDown'] || keys['s'] || keys['S']) && player.y < canvas.height - player.size) player.y += player.speed;
+            if ((keys['ArrowLeft'] || keys['a'] || keys['A']) && player.x > player.size) player.x -= player.speed;
+            if ((keys['ArrowRight'] || keys['d'] || keys['D']) && player.x < canvas.width - player.size) player.x += player.speed;
         }
 
-        // 1. CREATE ROOM
-        createBtn.addEventListener('click', () => {
-            const roomCode = generateRoomCode();
-            initPeerConnection(roomCode, true);
-        });
+        function draw() {
+            // Clear screen
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 2. JOIN ROOM
-        joinBtn.addEventListener('click', () => {
-            const roomCode = roomInput.value.trim().toUpperCase();
-            if (!roomCode) return alert('Please enter a valid room code!');
-            initPeerConnection(roomCode, false);
-        });
+            // Draw grid lines for visual style
+            ctx.strokeStyle = '#2a2a2a';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let j = 0; j < canvas.height; j += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, j);
+                ctx.lineTo(canvas.width, j);
+                ctx.stroke();
+            }
 
-        function initPeerConnection(roomCode, isCreator) {
-            // Switch UI views
-            lobby.style.display = 'none';
-            roomDashboard.style.display = 'inline-block';
-            activeRoomCode.innerText = roomCode;
-            videoContainer.style.display = 'flex';
+            // Draw local player
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
 
-            // Use PeerJS with a unique custom ID format for the room
-            const peerId = `zoom-room-${roomCode}-${isCreator ? 'host' : 'guest'}`;
-            peer = new Peer(peerId);
-
-            peer.on('open', (id) => {
-                console.log('Connected with ID:', id);
-                if (!isCreator) {
-                    // If we are the guest, automatically call the host of this room
-                    const hostPeerId = `zoom-room-${roomCode}-host`;
-                    const call = peer.call(hostPeerId, localStream);
-                    
-                    call.on('stream', remoteStream => {
-                        remoteVideo.srcObject = remoteStream;
-                        roomDashboard.style.display = 'none'; // Hide waiting text once connected
-                    });
-                }
-            });
-
-            // If we are the host, wait for incoming calls from guests
-            peer.on('call', call => {
-                call.answer(localStream);
-                call.on('stream', remoteStream => {
-                    remoteVideo.srcObject = remoteStream;
-                    roomDashboard.style.display = 'none'; // Hide waiting text once connected
-                });
-            });
-
-            peer.on('error', (err) => {
-                if (err.type === 'unavailable-id') {
-                    alert('That room is already active or taken. Try another code or create a new room.');
-                    location.reload();
-                } else {
-                    console.error(err);
-                }
-            });
+            // Draw player core label
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.fillText('You', player.x - 11, player.y - 25);
         }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game loop
+        gameLoop();
     </script>
 </body>
 </html>
