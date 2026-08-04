@@ -3,33 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Direct Room Video Chat</title>
+    <title>Instant Web Video Chat</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             text-align: center;
             background: #0f172a;
             color: #f8fafc;
             margin: 0;
-            padding: 30px;
+            padding: 40px 20px;
         }
+        h2 { margin-bottom: 5px; color: #38bdf8; }
+        .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 30px; }
+        
         .card {
             background: #1e293b;
-            padding: 25px;
+            padding: 30px;
             border-radius: 12px;
             display: inline-block;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-            max-width: 400px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            max-width: 420px;
             width: 100%;
             border: 1px solid #334155;
         }
         input {
             padding: 12px;
             font-size: 16px;
-            width: 80%;
-            margin-bottom: 12px;
-            border-radius: 6px;
+            width: 85%;
+            margin-bottom: 15px;
+            border-radius: 8px;
             border: 1px solid #475569;
             background: #0f172a;
             color: white;
@@ -37,15 +40,18 @@
             outline: none;
             text-transform: uppercase;
         }
+        input:focus { border-color: #38bdf8; }
+        
         button {
-            padding: 12px 20px;
+            padding: 12px 24px;
             font-size: 16px;
-            margin: 5px;
-            border-radius: 6px;
+            margin: 6px;
+            border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-weight: bold;
-            width: 85%;
+            font-weight: 600;
+            width: 90%;
+            transition: background 0.2s;
         }
         .btn-create { background: #10b981; color: white; }
         .btn-create:hover { background: #059669; }
@@ -57,14 +63,15 @@
             justify-content: center;
             gap: 20px;
             flex-wrap: wrap;
-            margin-top: 25px;
+            margin-top: 30px;
         }
         .video-box {
             position: relative;
             background: #000;
-            border-radius: 8px;
+            border-radius: 10px;
             overflow: hidden;
-            border: 2px solid #334155;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
             width: 400px;
             height: 300px;
         }
@@ -78,30 +85,38 @@
             position: absolute;
             bottom: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.6);
             padding: 4px 10px;
             border-radius: 4px;
             font-size: 12px;
             color: #cbd5e1;
         }
-        #status { margin-top: 15px; color: #fbbf24; font-size: 14px; font-weight: 500; }
+        #status-msg {
+            margin-top: 15px;
+            color: #fbbf24;
+            font-weight: 500;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
 
-    <h2>Direct Connect Video Chat</h2>
+    <h2>Direct Video Chat</h2>
+    <div class="subtitle">Create a room or type a friend's code to connect</div>
 
     <div id="lobby" class="card">
-        <button class="btn-create" id="create-btn">Create Room</button>
-        <p style="margin: 15px 0; color: #94a3b8;">OR</p>
+        <button class="btn-create" id="create-btn">🚀 Create New Room</button>
+        <p style="margin: 20px 0 10px 0; color: #64748b; font-size: 13px;">— OR JOIN EXISTING —</p>
         <input type="text" id="room-input" placeholder="Enter Room Code">
         <br>
-        <button class="btn-join" id="join-btn">Join Room</button>
-        <div id="status"></div>
+        <button class="btn-join" id="join-btn">🔗 Join Room</button>
+        <div id="status-msg"></div>
     </div>
 
     <div id="room-info" style="display:none; margin-bottom: 15px;">
-        Room Code: <strong id="code-display" style="color: #38bdf8; font-size: 20px;"></strong>
+        <span style="background: #1e293b; padding: 8px 16px; border-radius: 6px; border: 1px solid #334155;">
+            Room Code: <strong id="display-code" style="color: #38bdf8; font-size: 18px;"></strong>
+        </span>
     </div>
 
     <div id="video-container">
@@ -118,11 +133,11 @@
     <script>
         const lobby = document.getElementById('lobby');
         const roomInfo = document.getElementById('room-info');
-        const codeDisplay = document.getElementById('code-display');
+        const displayCode = document.getElementById('display-code');
         const createBtn = document.getElementById('create-btn');
         const joinBtn = document.getElementById('join-btn');
         const roomInput = document.getElementById('room-input');
-        const statusDiv = document.getElementById('status');
+        const statusMsg = document.getElementById('status-msg');
         const videoContainer = document.getElementById('video-container');
         
         const localVideo = document.getElementById('local-video');
@@ -131,14 +146,14 @@
         let localStream;
         let peer;
 
-        // 1. Request webcam and mic permissions immediately on load
+        // 1. Request webcam and microphone stream immediately on load
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 localStream = stream;
                 localVideo.srcObject = stream;
             })
             .catch(err => {
-                statusDiv.innerText = "Error: Camera/Microphone access blocked.";
+                statusMsg.innerText = "⚠️ Camera/Microphone access blocked. Check browser permissions!";
                 console.error(err);
             });
 
@@ -146,49 +161,48 @@
             return Math.random().toString(36).substring(2, 8).toUpperCase();
         }
 
-        // Button: Create Room (You become the Host)
+        // Host a room
         createBtn.addEventListener('click', () => {
             if (!localStream) return alert("Please allow camera permissions first!");
             const code = makeCode();
             startHost(code);
         });
 
-        // Button: Join Room (You connect directly to the Host's code)
+        // Join a room via code
         joinBtn.addEventListener('click', () => {
             if (!localStream) return alert("Please allow camera permissions first!");
             const code = roomInput.value.trim().toUpperCase();
-            if (!code) return alert("Please type a room code!");
+            if (!code) return alert("Please type a valid room code!");
             startGuest(code);
         });
 
-        // HOST SETUP
         function startHost(roomCode) {
             lobby.style.display = 'none';
             roomInfo.style.display = 'block';
-            codeDisplay.innerText = roomCode;
+            displayCode.innerText = roomCode;
             videoContainer.style.display = 'flex';
-            statusDiv.innerText = "Waiting for your friend to join...";
+            statusMsg.innerText = "Room created! Waiting for friend to join...";
 
-            // Create a completely predictable ID for the host using the room code
-            const hostPeerId = `directchat-host-${roomCode}`;
-            peer = new Peer(hostPeerId);
+            // Lock down a dedicated host ID using the room code prefix
+            const hostId = `vchat-host-${roomCode}`;
+            peer = new Peer(hostId);
 
             peer.on('open', () => {
-                console.log("Host ready with ID:", hostPeerId);
+                console.log("Host connected to network.");
             });
 
-            // When the guest dials in, answer with your local stream
+            // When a guest dials in, answer and send local stream back
             peer.on('call', call => {
                 call.answer(localStream);
                 call.on('stream', remoteStream => {
                     remoteVideo.srcObject = remoteStream;
-                    statusDiv.innerText = "Connected!";
+                    statusMsg.innerText = "Connected successfully!";
                 });
             });
 
             peer.on('error', err => {
                 if (err.type === 'unavailable-id') {
-                    alert("This room code is already active. Try a different code or refresh!");
+                    alert("This room code is already active. Try a new room.");
                     location.reload();
                 } else {
                     console.error(err);
@@ -196,37 +210,36 @@
             });
         }
 
-        // GUEST SETUP
         function startGuest(roomCode) {
             lobby.style.display = 'none';
             roomInfo.style.display = 'block';
-            codeDisplay.innerText = roomCode;
+            displayCode.innerText = roomCode;
             videoContainer.style.display = 'flex';
-            statusDiv.innerText = "Connecting to room...";
+            statusMsg.innerText = "Connecting to room...";
 
-            // Give the guest a random temporary ID so it doesn't clash
+            // Create standard peer for guest
             peer = new Peer();
 
             peer.on('open', () => {
-                // Target the exact host ID created by your friend
-                const hostPeerId = `directchat-host-${roomCode}`;
+                const hostId = `vchat-host-${roomCode}`;
                 
-                // Call the host directly using your local stream
-                const call = peer.call(hostPeerId, localStream);
+                // Call the host directly
+                const call = peer.call(hostId, localStream);
 
                 call.on('stream', remoteStream => {
                     remoteVideo.srcObject = remoteStream;
-                    statusDiv.innerText = "Connected!";
+                    statusMsg.innerText = "Connected successfully!";
                 });
 
                 call.on('error', (err) => {
-                    alert("Could not find that room code. Make sure your friend created the room first!");
+                    alert("Could not reach room code. Make sure your friend has already created the room!");
                     location.reload();
                 });
             });
 
             peer.on('error', err => {
                 console.error(err);
+                statusMsg.innerText = "Connection error occurred.";
             });
         }
     </script>
