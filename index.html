@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Video Chat</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #222;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        #video-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        video {
+            width: 400px;
+            height: 300px;
+            background: black;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
+        }
+        button {
+            background: #0084ff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #006fe6;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Simple P2P Video Chat</h2>
+    <div>
+        <p>Your ID: <span id="my-id">Generating ID...</span></p>
+        <input type="text" id="peer-id-input" placeholder="Enter friend's ID">
+        <button id="connect-btn">Connect</button>
+    </div>
+
+    <div id="video-container">
+        <video id="local-video" autoplay muted></video>
+        <video id="remote-video" autoplay></video>
+    </div>
+
+    <script>
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+        const myIdDisplay = document.getElementById('my-id');
+        const peerIdInput = document.getElementById('peer-id-input');
+        const connectBtn = document.getElementById('connect-btn');
+
+        let localStream;
+        let currentPeer;
+
+        // Initialize PeerJS using the free public cloud server (No backend required!)
+        const peer = new Peer();
+
+        // Get local webcam and microphone stream
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                localStream = stream;
+                localVideo.srcObject = stream;
+            })
+            .catch(error => console.error('Error accessing media devices.', error));
+
+        // Display your unique ID once connected to PeerJS cloud
+        peer.on('open', id => {
+            myIdDisplay.innerText = id;
+        });
+
+        // Handle incoming calls from another user
+        peer.on('call', call => {
+            call.answer(localStream);
+            call.on('stream', remoteStream => {
+                remoteVideo.srcObject = remoteStream;
+            });
+            currentPeer = call;
+        });
+
+        // Handle clicking the "Connect" button to call someone else
+        connectBtn.addEventListener('click', () => {
+            const peerId = peerIdInput.value;
+            if (!peerId) return alert('Please enter a friend ID');
+
+            const call = peer.call(peerId, localStream);
+            call.on('stream', remoteStream => {
+                remoteVideo.srcObject = remoteStream;
+            });
+            currentPeer = call;
+        });
+    </script>
+</body>
+</html>
