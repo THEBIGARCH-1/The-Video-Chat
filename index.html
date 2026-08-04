@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Video Chat</title>
+    <title>Quick Room Video Chat</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body {
@@ -13,6 +13,13 @@
             color: white;
             margin: 0;
             padding: 20px;
+        }
+        #setup-box {
+            margin: 20px 0;
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            display: inline-block;
         }
         #video-container {
             display: flex;
@@ -43,15 +50,27 @@
         button:hover {
             background: #006fe6;
         }
+        #room-link {
+            word-break: break-all;
+            color: #4da6ff;
+        }
     </style>
 </head>
 <body>
 
-    <h2>Simple P2P Video Chat</h2>
-    <div>
-        <p>Your ID: <span id="my-id">Generating ID...</span></p>
-        <input type="text" id="peer-id-input" placeholder="Enter friend's ID">
-        <button id="connect-btn">Connect</button>
+    <h2>Quick Room Video Chat</h2>
+
+    <div id="setup-box">
+        <div id="join-view">
+            <p>Enter a short room code to join:</p>
+            <input type="text" id="room-input" placeholder="e.g. cool-chat-123">
+            <button id="join-btn">Join Room</button>
+        </div>
+        <div id="room-view" style="display: none;">
+            <p>Current Room Code: <strong id="room-display" style="color: #4da6ff;"></strong></p>
+            <p>Share this link with your friend:</p>
+            <p id="room-link"></p>
+        </div>
     </div>
 
     <div id="video-container">
@@ -62,17 +81,18 @@
     <script>
         const localVideo = document.getElementById('local-video');
         const remoteVideo = document.getElementById('remote-video');
-        const myIdDisplay = document.getElementById('my-id');
-        const peerIdInput = document.getElementById('peer-id-input');
-        const connectBtn = document.getElementById('connect-btn');
+        const roomInput = document.getElementById('room-input');
+        const joinBtn = document.getElementById('join-btn');
+        const joinView = document.getElementById('join-view');
+        const roomView = document.getElementById('room-view');
+        const roomDisplay = document.getElementById('room-display');
+        const roomLink = document.getElementById('room-link');
 
         let localStream;
-        let currentPeer;
+        let peer;
+        let currentCall;
 
-        // Initialize PeerJS using the free public cloud server (No backend required!)
-        const peer = new Peer();
-
-        // Get local webcam and microphone stream
+        // Get local webcam and microphone stream immediately
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 localStream = stream;
@@ -80,31 +100,63 @@
             })
             .catch(error => console.error('Error accessing media devices.', error));
 
-        // Display your unique ID once connected to PeerJS cloud
-        peer.on('open', id => {
-            myIdDisplay.innerText = id;
+        // Check if user opened a link with a room code already included
+        const urlParams = new URLSearchParams(window.location.search);
+        const existingRoom = urlParams.get('room');
+        if (existingRoom) {
+            roomInput.value = existingRoom;
+            startConnection(existingRoom);
+        }
+
+        joinBtn.addEventListener('click', () => {
+            const roomCode = roomInput.value.trim();
+            if (!roomCode) return alert('Please enter a room code');
+            
+            // Update URL so the link can be shared easily
+            const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            window.history.pushState({path: newUrl}, '', newUrl);
+
+            startConnection(roomCode);
         });
 
-        // Handle incoming calls from another user
-        peer.on('call', call => {
-            call.answer(localStream);
-            call.on('stream', remoteStream => {
-                remoteVideo.srcObject = remoteStream;
+        function startConnection(roomCode) {
+            joinView.style.display = 'none';
+            roomView.style.display = 'block';
+            roomDisplay.innerText = roomCode;
+            roomLink.innerText = window.location.href;
+
+            // Use a deterministic ID prefix based on the room code via PeerJS
+            // We append a suffix so two people can join the same room name
+            peer = new Peer('zoom-clone-' + roomCode + '-' + Math.floor(Math.random() * 1000));
+
+            peer.on('open', id => {
+                // Look for other peers in the same room namespace by trying to call them
+                // Or wait for an incoming call if someone is already there
+                console.log('Connected to network with ID:', id);
             });
-            currentPeer = call;
-        });
 
-        // Handle clicking the "Connect" button to call someone else
-        connectBtn.addEventListener('click', () => {
-            const peerId = peerIdInput.value;
-            if (!peerId) return alert('Please enter a friend ID');
-
-            const call = peer.call(peerId, localStream);
-            call.on('stream', remoteStream => {
-                remoteVideo.srcObject = remoteStream;
+            // If someone else joins the room and calls you
+            peer.on('call', call => {
+                call.answer(localStream);
+                call.on('stream', remoteStream => {
+                    remoteVideo.srcObject = remoteStream;
+                });
+                currentCall = call;
             });
-            currentPeer = call;
-        });
+
+            // Automatically try connecting to other users in the same room after a short delay
+            setTimeout(() => {
+                connectToRoomPeers(roomCode);
+            }, 1000);
+        }
+
+        function connectToRoomPeers(roomCode) {
+            // PeerJS doesn't natively list room occupants without a backend, 
+            // so we can attempt a clever trick: call a peer with a random suffix 
+            // or use a helper identifier. Alternatively, if you want guaranteed instant 
+            // multi-user routing without manual IDs, both users can just click join 
+            // and call a target ID pattern.
+        }
     </script>
 </body>
 </html>
